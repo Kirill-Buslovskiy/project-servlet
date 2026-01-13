@@ -1,5 +1,6 @@
 package com.tictactoe;
 
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,8 +20,36 @@ public class LogicServlet extends HttpServlet {
         Field field = extractField(currentSession);
 
         int index = getSelectedIndex(req);
+        Sign currentSign = field.getField().get(index);
+
+        if (Sign.EMPTY != currentSign) {
+            RequestDispatcher requestDispatcher = getServletContext().getRequestDispatcher("/index.jsp");
+            requestDispatcher.forward(req, resp);
+            return;
+        }
 
         field.getField().put(index, Sign.CROSS);
+
+        int emptyFieldIndex = field.getEmptyFieldIndex();
+
+        if (checkWin(resp, currentSession, field)) {
+            return;
+        }
+
+        if (emptyFieldIndex >= 0) {
+            field.getField().put(emptyFieldIndex, Sign.NOUGHT);
+            if (checkWin(resp, currentSession, field)) {
+                return;
+            }
+        } else {
+            currentSession.setAttribute("draw", true);
+
+            List<Sign> data = field.getFieldData();
+            currentSession.setAttribute("data", data);
+
+            resp.sendRedirect("/index.jsp");
+            return;
+        }
 
         List<Sign> data = field.getFieldData();
 
@@ -28,6 +57,26 @@ public class LogicServlet extends HttpServlet {
         currentSession.setAttribute("field", field);
 
         resp.sendRedirect("/index.jsp");
+    }
+
+    private boolean checkWin(HttpServletResponse response, HttpSession currentSession, Field field) throws IOException {
+        Sign winner = field.checkWin();
+        if (Sign.CROSS == winner || Sign.NOUGHT == winner) {
+            currentSession.setAttribute("winner", winner);
+
+            List<Sign> data = field.getFieldData();
+            currentSession.setAttribute("data", data);
+
+            response.sendRedirect("/index.jsp");
+            return true;
+        }
+        return false;
+    }
+
+    private int getSelectedIndex(HttpServletRequest request) {
+        String click = request.getParameter("click");
+        boolean isNumeric = click.chars().allMatch(Character::isDigit);
+        return isNumeric ? Integer.parseInt(click) : 0;
     }
 
     private Field extractField(HttpSession currentSession) {
@@ -39,9 +88,5 @@ public class LogicServlet extends HttpServlet {
         return (Field) fieldAttribute;
     }
 
-    private int getSelectedIndex(HttpServletRequest request) {
-        String click = request.getParameter("click");
-        boolean isNumeric = click.chars().allMatch(Character::isDigit);
-        return isNumeric ? Integer.parseInt(click) : 0;
-    }
+
 }
